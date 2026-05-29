@@ -1,21 +1,19 @@
-SRC_FILES = main.py
-
 install:
-	uv sync
+	uv sync --python 3.12
 
 run:
-	uv run python3 main.py $(map)
+	@uv run python3 -m src.main $(MAP)
 
 debug:
-	uv run python3 -m pdb main.py $(map)
+	@uv run python3 -m pdb -m src.main $(MAP)
 
 lint:
-	uv run flake8 $(SRC_FILES)
-	uv run mypy $(SRC_FILES) --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
+	uv run flake8 src
+	uv run mypy src --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
 
 lint-strict:
-	uv run flake8 $(SRC_FILES)
-	uv run mypy $(SRC_FILES) --strict
+	uv run flake8 src
+	uv run mypy src --strict
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +
@@ -25,4 +23,6 @@ clean:
 fclean: clean
 	rm -rf .venv
 
-.PHONY: install run debug lint lint-strict clean fclean
+fc: fclean
+
+.PHONY: install run debug lint lint-strict clean fclean fc
