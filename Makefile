@@ -1,8 +1,7 @@
 SRC_FILES = main.py
 
 install:
-	uv venv
-	uv pip install flake8 mypy pygame-ce
+	uv sync
 
 run:
 	uv run python3 main.py $(map)

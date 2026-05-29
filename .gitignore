@@ -13,5 +13,4 @@ build/
 venv/
 env/
 ENV/
-maps/
-maps.tar.gz
+.python-version
