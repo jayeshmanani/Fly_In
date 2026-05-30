@@ -2,6 +2,7 @@ import sys
 from src.pathfinder import Pathfinder
 from src.parser import MapParser
 from src.exceptions import ParseError
+from src.simulator import Simulator
 
 
 def main() -> None:
@@ -27,9 +28,24 @@ def main() -> None:
         sys.exit(1)
     print(graph)
     print()
+
     finder = Pathfinder(graph)
     paths = finder.find_shortest_path(graph.start_zone, graph.end_zone)
     print(f"Shortest paths: {paths}")
+    print()
+
+    try:
+        sim = Simulator(graph)
+        turn_log = sim.run()
+    except ParseError as e:
+        print(f"Simulation error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    for line in turn_log:
+        print(line)
+
+    print()
+    print(f"Completed in {sim.get_turn_count()} turns.")
 
 
 if __name__ == "__main__":
