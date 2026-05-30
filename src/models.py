@@ -192,9 +192,61 @@ class Drone:
         """Return True if drone has reached the end zone."""
         return self.status == DroneStatus.ARRIVED
 
+    def next_zone(self) -> Optional[str]:
+        """Return next planned zone in path, or None."""
+        next_index = self.path_index + 1
+        if self.path and next_index < len(self.path):
+            return self.path[next_index]
+        return None
+
     def __repr__(self) -> str:
         """Return readable string representation."""
         return (
             f"Drone(id={self.drone_id}, zone={self.current_zone!r}, "
             f"status={self.status.value})"
+        )
+
+
+@dataclass
+class ZoneState:
+    """Runtime occupancy state for a single zone.
+
+    Attributes:
+        zone: The zone this state tracks.
+        drones: Set of drone IDs currently occupying this zone.
+    """
+
+    zone: Zone
+    drones: set[int] = field(default_factory=set)
+
+    def occupancy(self) -> int:
+        """Return number of drones currently in this zone."""
+        return len(self.drones)
+
+    def has_capacity(self, incoming: int = 1) -> bool:
+        """Return True if zone can accept more drones."""
+        return self.occupancy() + incoming <= self.zone.max_drones
+
+
+@dataclass
+class ConnectionState:
+    """Runtime traversal state for a single connection.
+
+    Attributes:
+        connection: The connection this state tracks.
+        drones: Set of drone IDs currently traversing this connection.
+    """
+
+    connection: Connection
+    drones: set[int] = field(default_factory=set)
+
+    def occupancy(self) -> int:
+        """Return number of drones currently using this connection."""
+        return len(self.drones)
+
+    def has_capacity(self, incoming: int = 1) -> bool:
+        """Return True if connection can accept more drones."""
+        return (
+            self.occupancy() + incoming
+            <= self.connection.max_link_capacity
         )
