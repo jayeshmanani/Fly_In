@@ -58,21 +58,18 @@ class MapParser:
             return
 
         if not self._found_nb_drones:
-            raise ParseError(
-                line_number,
-                "First non-comment line must be 'nb_drones: <n>'",
-            )
-
+            self._err(line_number,
+                      "First non-comment line must be 'nb_drones: <n>'")
         for prefix, handler in self._handlers.items():
             if line.startswith(prefix):
                 handler(line, line_number)
                 return
-        raise ParseError(line_number, f"Unrecognised line format: {line!r}")
+        self._err(line_number, f"Unrecognised line format: {line!r}")
 
     def _handle_nb_drones(self, line: str, line_number: int) -> None:
         """Handle a nb_drones directive line."""
         if self._found_nb_drones:
-            raise ParseError(line_number, "Duplicate 'nb_drones' definition")
+            self._err(line_number, "Duplicate 'nb_drones' definition")
         value = line[len("nb_drones:"):].strip()
         self._graph.nb_drones = self._parse_positive_int(
             value, "nb_drones", line_number
@@ -82,7 +79,7 @@ class MapParser:
     def _handle_start_hub(self, line: str, line_number: int) -> None:
         """Handle a start_hub zone definition line."""
         if self._start_count:
-            raise ParseError(line_number, "Multiple 'start_hub' definitions")
+            self._err(line_number, "Multiple 'start_hub' definitions")
         rest = line[len("start_hub:"):].strip()
         zone = self._parse_hub_line(
             rest, line_number, is_start=True, is_end=False
@@ -92,37 +89,55 @@ class MapParser:
         self._start_count += 1
 
     def _handle_end_hub(self, line: str, line_number: int) -> None:
-        return None
+        """Handle an end_hub zone definition line."""
+        if self._end_count:
+            self._err(line_number, "Multiple 'end_hub' definitions")
+        rest = line[len("end_hub:"):].strip()
+        zone = self._parse_hub_line(
+            rest, line_number, is_start=False, is_end=True
+        )
+        self._add_zone(zone, line_number)
+        self._graph.end_zone = zone.name
+        self._end_count += 1
 
     def _handle_hub(self, line: str, line_number: int) -> None:
-        return None
+        """Handle a regular hub zone definition line."""
+        rest = line[len("hub:"):].strip()
+        zone = self._parse_hub_line(
+            rest, line_number, is_start=False, is_end=False
+        )
+        self._add_zone(zone, line_number)
 
     def _handle_connection(self, line: str, line_number: int) -> None:
-        return None
+        """Handle a connection definition line."""
+        rest = line[len("connection:"):].strip()
+        conn = self._parse_connection_line(rest, line_number)
+        key = conn.key()
+        if key in self._seen_connections:
+            self._err(line_number,
+                      f"Duplicate connection {conn.zone_a!r}-{conn.zone_b!r}")
+        self._seen_connections.add(key)
+        self._graph.connections.append(conn)
 
     def _parse_hub_line(
         self, rest: str, line_number: int, is_start: bool, is_end: bool
     ) -> Zone:
         """Parse '<name> <x> <y> [metadata]' into a Zone."""
         meta, rest = self._extract_metadata(rest, line_number)
-        parts = rest.split()
-        if len(parts) != 3:
-            raise ParseError(
-                line_number, f"Hub expects '<name> <x> <y>', got {rest!r}"
-            )
-        name, x_str, y_str = parts
+        try:
+            name, x_str, y_str = rest.split()
+        except ValueError:
+            self._err(
+                line_number, f"Hub expects '<name> <x> <y>', got {rest!r}")
         if "-" in name:
-            raise ParseError(
-                line_number, f"Zone name {name!r} must not contain dashes"
-            )
+            self._err(
+                line_number, f"Zone name {name!r} must not contain dashes")
         try:
             x, y = int(x_str), int(y_str)
         except ValueError:
-            raise ParseError(
-                line_number,
-                f"Coordinates must be integers, "
-                f"got x={x_str!r} y={y_str!r}"
-            )
+            self._err(line_number,
+                      f"Coordinates must be integers, "
+                      f"got x={x_str!r} y={y_str!r}")
         zone_type = ZoneType.NORMAL
         if "zone" in meta:
             zone_type = ZoneType.from_string(meta["zone"], line_number)
@@ -133,45 +148,66 @@ class MapParser:
             )
         color: Optional[str] = meta.get("color")
         return Zone(
-            name=name, x=x, y=y, zone_type=zone_type,
-            color=color, max_drones=max_drones,
-            is_start=is_start, is_end=is_end,
+            name=name, x=x, y=y, zone_type=zone_type, color=color,
+            max_drones=max_drones, is_start=is_start, is_end=is_end,
+        )
+
+    def _parse_connection_line(
+        self, rest: str, line_number: int
+    ) -> Connection:
+        """Parse '<zone_a>-<zone_b> [metadata]' into a Connection."""
+        meta, rest = self._extract_metadata(rest, line_number)
+        rest = rest.strip()
+
+        if rest.count("-") != 1:
+            self._err(line_number, f"Connection must be "
+                      f"'<zone_a>-<zone_b>' (one dash), got {rest!r}")
+
+        zone_a, zone_b = rest.split("-", 1)
+        zone_a, zone_b = zone_a.strip(), zone_b.strip()
+
+        missing = {n for n in (zone_a, zone_b) if n not in self._graph.zones}
+        if missing:
+            self._err(line_number, f"Undefined zone(s): {', '.join(missing)}")
+        if zone_a == zone_b:
+            self._err(line_number,
+                      f"Connection cannot link a zone to itself: {zone_a!r}")
+        max_link_capacity = 1
+        if "max_link_capacity" in meta:
+            max_link_capacity = self._parse_positive_int(
+                meta["max_link_capacity"], "max_link_capacity", line_number
+            )
+        return Connection(
+            zone_a=zone_a, zone_b=zone_b,
+            max_link_capacity=max_link_capacity
         )
 
     def _validate(self) -> None:
         """Ensure all mandatory sections were present."""
         if not self._found_nb_drones:
-            raise ParseError(0, "Missing 'nb_drones' definition")
+            self._err(0, "Missing 'nb_drones' definition")
         if self._start_count == 0:
-            raise ParseError(0, "Missing 'start_hub' definition")
-        # if self._end_count == 0:
-        #     raise ParseError(0, "Missing 'end_hub' definition")
+            self._err(0, "Missing 'start_hub' definition")
+        if self._end_count == 0:
+            self._err(0, "Missing 'end_hub' definition")
 
     def _add_zone(self, zone: Zone, line_number: int) -> None:
         """Insert zone into graph, raising on duplicate names."""
         if zone.name in self._graph.zones:
-            raise ParseError(line_number, f"Duplicate zone name {zone.name!r}")
+            self._err(line_number, f"Duplicate zone name {zone.name!r}")
         self._graph.zones[zone.name] = zone
 
-    def _parse_positive_int(
-        self,
-        value: str,
-        field_name: str,
-        line_number: int,
-    ) -> int:
+    def _parse_positive_int(self, value: str,
+                            field: str, line_num: int,
+                            ) -> int:
         """Parse string as a positive integer."""
         try:
             n = int(value)
         except ValueError:
             raise ParseError(
-                line_number,
-                f"'{field_name}' must be an integer, "
-                f"got {value!r}"
-            )
+                line_num, f"Expected {field} to be an integer, got {value!r}")
         if n <= 0:
-            raise ParseError(
-                line_number, f"'{field_name}' must be positive, got {n}"
-            )
+            self._err(line_num, f"'{field}' must be positive, got {n}")
         return n
 
     def _extract_metadata(
@@ -188,17 +224,19 @@ class MapParser:
     def _parse_metadata(self, raw: str, line_number: int) -> dict[str, str]:
         """Parse '[key=value ...]' block into a dict."""
         if not raw.startswith("[") or not raw.endswith("]"):
-            raise ParseError(line_number, f"Invalid metadata block: {raw!r}")
+            raise self._err(line_number, f"Invalid metadata block: {raw!r}")
         meta: dict[str, str] = {}
         for token in raw[1:-1].strip().split():
-            if "=" not in token:
-                raise ParseError(
-                    line_number, f"Metadata token missing '=': {token!r}"
-                )
-            key, _, value = token.partition("=")
-            if not key or not value:
-                raise ParseError(
-                    line_number, f"Malformed metadata token: {token!r}"
-                )
-            meta[key.strip()] = value.strip()
+            try:
+                k, v = token.split("=", 1)
+            except ValueError:
+                self._err(line_number, f"Bad metadata token: {token!r}")
+            if not k or not v or "=" in v:
+                self._err(
+                    line_number, f"Malformed metadata token: {token!r}")
+            meta[k.strip()] = v.strip()
         return meta
+
+    def _err(self, line_number: int, msg: str) -> ParseError:
+        """Raise a ParseError with the given line number and message."""
+        raise ParseError(line_number, msg)

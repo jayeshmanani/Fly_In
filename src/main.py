@@ -17,7 +17,7 @@ def main() -> None:
     filepath = sys.argv[1]
 
     try:
-        graph = graph = MapParser().parse(filepath)
+        graph = MapParser().parse(filepath)
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

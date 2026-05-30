@@ -45,6 +45,13 @@ class Zone:
     is_start: bool = False
     is_end: bool = False
 
+    def __repr__(self) -> str:
+        """Return readable string representation."""
+        return (
+            f"Zone({self.name!r}, type={self.zone_type.value}, "
+            f"max={self.max_drones})"
+        )
+
 
 @dataclass
 class Connection:
@@ -52,6 +59,22 @@ class Connection:
     zone_a: str
     zone_b: str
     max_link_capacity: int = 1
+
+    def key(self) -> tuple[str, str]:
+        """Return a canonical (sorted) key for deduplication.
+
+        Returns:
+            Tuple of zone names in alphabetical order.
+        """
+        a, b = sorted([self.zone_a, self.zone_b])
+        return (a, b)
+
+    def __repr__(self) -> str:
+        """Return readable string representation."""
+        return (
+            f"Connection({self.zone_a!r} <-> {self.zone_b!r}, "
+            f"cap={self.max_link_capacity})"
+        )
 
 
 @dataclass
@@ -74,3 +97,10 @@ class Drone:
     transit_destination: Optional[str] = None
     path: list[str] = field(default_factory=list)
     path_index: int = 0
+
+    def __repr__(self) -> str:
+        """Return readable string representation."""
+        return (
+            f"Drone(id={self.drone_id}, zone={self.current_zone!r}, "
+            f"status={self.status.value})"
+        )
