@@ -26,6 +26,10 @@ def main() -> None:
         print(f"Parse error: {e}", file=sys.stderr)
         sys.exit(1)
     print(graph)
+    print()
+    finder = Pathfinder(graph)
+    paths = finder.find_shortest_path(graph.start_zone, graph.end_zone)
+    print(f"Shortest paths: {paths}")
 
 
 if __name__ == "__main__":
