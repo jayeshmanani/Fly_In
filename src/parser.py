@@ -1,7 +1,10 @@
+
+"""Parser for Fly-in drone routing map files."""
+
 import re
-from typing import Optional
-from src.models import Graph, Zone, Connection, ZoneType
+from typing import Callable, Optional
 from src.exceptions import ParseError
+from src.models import Connection, Graph, Zone, ZoneType
 
 
 class MapParser:
@@ -14,8 +17,7 @@ class MapParser:
         self._found_nb_drones: bool = False
         self._start_count: int = 0
         self._end_count: int = 0
-
-        self._handlers = {
+        self._handlers: dict[str, Callable[[str, int], None]] = {
             "start_hub:": self._handle_start_hub,
             "end_hub:": self._handle_end_hub,
             "hub:": self._handle_hub,
@@ -178,8 +180,7 @@ class MapParser:
                 meta["max_link_capacity"], "max_link_capacity", line_number
             )
         return Connection(
-            zone_a=zone_a, zone_b=zone_b,
-            max_link_capacity=max_link_capacity
+            zone_a=zone_a, zone_b=zone_b, max_link_capacity=max_link_capacity
         )
 
     def _validate(self) -> None:
@@ -204,8 +205,9 @@ class MapParser:
         try:
             n = int(value)
         except ValueError:
-            raise ParseError(
+            self._err(
                 line_num, f"Expected {field} to be an integer, got {value!r}")
+            return 0
         if n <= 0:
             self._err(line_num, f"'{field}' must be positive, got {n}")
         return n
