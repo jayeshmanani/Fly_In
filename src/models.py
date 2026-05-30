@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
+from src.exceptions import ParseError
 
 
 class ZoneType(Enum):
@@ -10,6 +11,17 @@ class ZoneType(Enum):
     BLOCKED = "blocked"
     RESTRICTED = "restricted"
     PRIORITY = "priority"
+
+    @classmethod
+    def from_string(cls, value: str, line_number: int) -> "ZoneType":
+        """Parse a string into a ZoneType, raising ParseError if invalid."""
+        try:
+            return cls(value)
+        except ValueError:
+            valid = ", ".join(z.value for z in cls)
+            raise ParseError(
+                line_number,
+                f"Unknown zone type {value!r}. Must be one of: {valid}")
 
 
 class DroneStatus(Enum):

@@ -1,5 +1,6 @@
 import sys
-from src.parser import MapParser, ParseError
+from src.parser import MapParser
+from src.exceptions import ParseError
 
 
 def main() -> None:
