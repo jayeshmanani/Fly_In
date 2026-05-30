@@ -51,6 +51,14 @@ class Zone:
     is_start: bool = False
     is_end: bool = False
 
+    def movement_cost(self) -> int:
+        """Return turn cost to enter this zone."""
+        return 2 if self.zone_type == ZoneType.RESTRICTED else 1
+
+    def is_accessible(self) -> bool:
+        """Return False if zone is blocked, True otherwise."""
+        return self.zone_type != ZoneType.BLOCKED
+
     def __repr__(self) -> str:
         """Return readable string representation."""
         return (
@@ -72,6 +80,25 @@ class Connection:
         a, b = sorted([self.zone_a, self.zone_b])
         return (a, b)
 
+    def connects(self, name: str) -> bool:
+        """Return True if this connection involves the named zone."""
+        return name == self.zone_a or name == self.zone_b
+
+    def other(self, name: str) -> str:
+        """Return the other endpoint zone name.
+
+        Raises:
+            ValueError: If name is not an endpoint of this connection.
+        """
+        if name == self.zone_a:
+            return self.zone_b
+        if name == self.zone_b:
+            return self.zone_a
+        raise ValueError(
+            f"Zone '{name}' is not part of "
+            f"connection '{self.zone_a}-{self.zone_b}'"
+        )
+
     def __repr__(self) -> str:
         """Return readable string representation."""
         return (
@@ -89,6 +116,31 @@ class Graph:
     start_zone: str = ""
     end_zone: str = ""
     nb_drones: int = 0
+
+    def get_zone(self, name: str) -> Optional[Zone]:
+        """Return zone by name, or None if not found."""
+        return self.zones.get(name)
+
+    def get_connection(
+        self, zone_a: str, zone_b: str
+    ) -> Optional[Connection]:
+        """Return connection between two zones, or None."""
+        for conn in self.connections:
+            if conn.connects(zone_a) and conn.connects(zone_b):
+                return conn
+        return None
+
+    def neighbors(
+        self, zone_name: str
+    ) -> list[tuple[Zone, Connection]]:
+        """Return accessible (neighbor_zone, connection) pairs."""
+        result: list[tuple[Zone, Connection]] = []
+        for conn in self.connections:
+            if conn.connects(zone_name):
+                neighbor = self.zones.get(conn.other(zone_name))
+                if neighbor and neighbor.is_accessible():
+                    result.append((neighbor, conn))
+        return result
 
     def __str__(self) -> str:
         """Return human-readable graph summary."""

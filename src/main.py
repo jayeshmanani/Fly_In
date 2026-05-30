@@ -1,4 +1,5 @@
 import sys
+from src.pathfinder import Pathfinder
 from src.parser import MapParser
 from src.exceptions import ParseError
 
