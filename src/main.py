@@ -1,5 +1,5 @@
 import sys
-from src.parser import parse_map, ParseError
+from src.parser import MapParser, ParseError
 
 
 def main() -> None:
@@ -16,7 +16,7 @@ def main() -> None:
     filepath = sys.argv[1]
 
     try:
-        graph = parse_map(filepath)
+        graph = graph = MapParser().parse(filepath)
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
