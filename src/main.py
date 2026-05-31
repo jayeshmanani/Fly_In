@@ -1,5 +1,5 @@
 import sys
-from src.pathfinder import Pathfinder
+from src.pathfinder import PathFinder
 from src.parser import MapParser
 from src.exceptions import ParseError
 from src.simulator import Simulator
@@ -29,7 +29,7 @@ def main() -> None:
     print(graph)
     print()
 
-    finder = Pathfinder(graph)
+    finder = PathFinder(graph)
     paths = finder.find_shortest_path(graph.start_zone, graph.end_zone)
     print(f"Shortest paths: {paths}")
     print()
