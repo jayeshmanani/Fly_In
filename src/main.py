@@ -1,8 +1,8 @@
 import sys
-from src.pathfinder import PathFinder
 from src.parser import MapParser
 from src.exceptions import ParseError
 from src.simulator import Simulator
+from src.visualizer import Visualizer
 
 
 def main() -> None:
@@ -29,11 +29,6 @@ def main() -> None:
     print(graph)
     print()
 
-    finder = PathFinder(graph)
-    paths = finder.find_shortest_path(graph.start_zone, graph.end_zone)
-    print(f"Shortest paths: {paths}")
-    print()
-
     try:
         sim = Simulator(graph)
         turn_log = sim.run()
@@ -46,6 +41,11 @@ def main() -> None:
 
     print()
     print(f"Completed in {sim.get_turn_count()} turns.")
+    print()
+    print("Launching visualizer... (Q or ESC to quit)")
+
+    viz = Visualizer(graph, turn_log)
+    viz.run()
 
 
 if __name__ == "__main__":
