@@ -1,8 +1,9 @@
 
 """Turn-based simulation engine for the Fly-in drone routing."""
 
-from src.models import Drone, Graph
-from src.models import ZoneState, ConnectionState
+from src.models import (Drone, Graph, ZoneState,
+                        ConnectionState, DroneStatus, ZoneType,
+                        Connection, Zone)
 from src.pathfinder import PathFinder
 from src.exceptions import ParseError
 from typing import Optional
@@ -31,10 +32,14 @@ class Simulator:
         max_turns = 10
         self._setup_drones()
         print(f"Initial drone assignments: {[str(d) for d in self._drones]}")
-        print(f"Path Assignments: {[{d.drone_id: d.path for d in self._drones}]}")
+        print(
+            f"Path Assignments: {[{d.drone_id: d.path for d in self._drones}]}"
+        )
         while not self._all_drones_reached() and self._turn < max_turns:
             self._turn += 1
-            self._turn_log.append(f"Turn {self._turn}:")
+            moves = self._advance_turn()
+            if moves:
+                self._turn_log.append(" ".join(moves))
         return self._turn_log
 
     def get_turn_count(self) -> int:
@@ -136,3 +141,122 @@ class Simulator:
             if zone and not zone.is_end:
                 cap = min(cap, zone.max_drones)
         return max(1, cap)
+
+    def _advance_turn(self) -> list[str]:
+        moves: list[str] = []
+        for drone in self._active_drones():
+            if drone.status == DroneStatus.IN_TRANSIT:
+                drone.transit_turns_left -= 1
+                if drone.transit_turns_left == 0:
+                    result = self._arrive_from_transit(drone)
+                    if result:
+                        moves.append(result)
+
+        for drone in self._active_drones():
+            if drone.status != DroneStatus.WAITING:
+                continue
+            if drone.transit_turns_left > 0:
+                drone.transit_turns_left -= 1
+                continue
+            result = self._try_move_drone(drone)
+            if result:
+                moves.append(result)
+        moves.sort(key=lambda x: int(x.split("-")[0][1]))
+        return moves
+
+    def _arrive_from_transit(self, drone: Drone) -> Optional[str]:
+        dest_name = drone.transit_destination
+        if dest_name is None:
+            return None
+
+        zone_state = self._zone_states.get(dest_name)
+        if zone_state is None:
+            return None
+
+        conn = self._graph.get_connection(drone.current_zone, dest_name)
+        if conn is None:
+            for c_state in self._conn_states.values():
+                if drone.drone_id in c_state.drones:
+                    c_state.drones.discard(drone.drone_id)
+                    break
+        else:
+            self._conn_states[conn.key()].drones.discard(drone.drone_id)
+
+        zone_state.drones.add(drone.drone_id)
+        drone.current_zone = dest_name
+        drone.path_index += 1
+        drone.status = DroneStatus.WAITING
+        drone.transit_destination = None
+
+        if dest_name == self._graph.end_zone:
+            drone.status = DroneStatus.ARRIVED
+            zone_state.drones.discard(drone.drone_id)
+        return f"{drone.label}-{dest_name}"
+
+    def _try_move_drone(self, drone: Drone) -> Optional[str]:
+        next_name = drone.next_zone()
+        if next_name is None:
+            return None
+        next_zone = self._graph.get_zone(next_name)
+        if next_zone is None:
+            return None
+
+        conn = self._graph.get_connection(drone.current_zone, next_name)
+        if conn is None:
+            return None
+
+        conn_state = self._conn_states.get(conn.key())
+        zone_state = self._zone_states.get(next_name)
+
+        if conn_state is None and zone_state is None:
+            return None
+        if conn_state and not conn_state.has_capacity():
+            return None
+        if next_zone.zone_type == ZoneType.RESTRICTED:
+            return self._start_transit(drone, conn, next_zone)
+        if zone_state and not zone_state.has_capacity():
+            return None
+        return self._execute_move(drone, conn, next_zone)
+
+    def _start_transit(
+        self, drone: Drone, conn: Connection, dest: Zone
+    ) -> Optional[str]:
+        conn_state = self._conn_states.get(conn.key())
+        if conn_state is None or not conn_state.has_capacity():
+            return None
+        self._zone_states[drone.current_zone].drones.discard(
+            drone.drone_id
+        )
+        conn_state.drones.add(drone.drone_id)
+
+        drone.status = DroneStatus.IN_TRANSIT
+        drone.transit_turns_left = 1
+        drone.transit_destination = dest.name
+
+        conn_name = f"{conn.zone_a}-{conn.zone_b}"
+        return f"{drone.label}-{conn_name}"
+
+    def _execute_move(
+        self, drone: Drone, conn: Connection, dest: Zone
+    ) -> str:
+        self._zone_states[drone.current_zone].drones.discard(
+            drone.drone_id
+        )
+
+        conn_state = self._conn_states[conn.key()]
+        conn_state.drones.add(drone.drone_id)
+
+        dest_state = self._zone_states[dest.name]
+        dest_state.drones.add(drone.drone_id)
+
+        conn_state.drones.discard(drone.drone_id)
+
+        drone.current_zone = dest.name
+        drone.path_index += 1
+        drone.status = DroneStatus.WAITING
+
+        if dest.name == self._graph.end_zone:
+            drone.status = DroneStatus.ARRIVED
+            dest_state.drones.discard(drone.drone_id)
+
+        return f"{drone.label}-{dest.name}"
