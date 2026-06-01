@@ -2,7 +2,7 @@
 
 from typing import Optional
 import pygame
-from src.models import Graph
+from src.models import Graph, ZoneType
 
 
 class GameConfig:
@@ -115,6 +115,74 @@ class Visualizer:
     def _draw(self) -> None:
         """Render the full frame."""
         self._screen.fill(self._cfg.BG_COLOR)
+        self._draw_edges()
+        self._draw_zones()
+
+    def _draw_zones(self) -> None:
+        """Draw each zone as a coloured circle with label."""
+        for name, zone in self._graph.zones.items():
+            pos = self._zone_positions.get(name)
+            if pos is None:
+                continue
+
+            color = self._resolve_color(
+                zone.color, zone.zone_type, zone.is_start, zone.is_end
+            )
+
+            if zone.zone_type == ZoneType.RESTRICTED:
+                if not zone.color:
+                    color = (200, 80, 80)
+                pygame.draw.circle(
+                    self._screen, color, pos, self._cfg.ZONE_RADIUS + 4, 2
+                )
+            elif zone.zone_type == ZoneType.PRIORITY:
+                if not zone.color:
+                    color = (80, 220, 180)
+                pygame.draw.circle(
+                    self._screen, color, pos, self._cfg.ZONE_RADIUS + 4, 2
+                )
+
+            pygame.draw.circle(self._screen, color, pos, self._cfg.ZONE_RADIUS)
+            pygame.draw.circle(
+                self._screen, self._cfg.LABEL_COLOR, pos,
+                self._cfg.ZONE_RADIUS, 1
+            )
+
+            label = self._font.render(name, True, self._cfg.LABEL_COLOR)
+            lx = pos[0] - label.get_width() // 2
+            ly = pos[1] + self._cfg.ZONE_RADIUS + 4
+            self._screen.blit(label, (lx, ly))
+
+            if zone.max_drones > 1 and zone.max_drones < 999999:
+                cap_surf = self._font.render(
+                    f"[{zone.max_drones}]", True, (180, 180, 100)
+                )
+                cx = pos[0] - cap_surf.get_width() // 2
+                cy = pos[1] - self._cfg.ZONE_RADIUS - 14
+                self._screen.blit(cap_surf, (cx, cy))
+
+    def _draw_edges(self) -> None:
+        """Draw connection lines between zones."""
+        for conn in self._graph.connections:
+            pos_a = self._zone_positions.get(conn.zone_a)
+            pos_b = self._zone_positions.get(conn.zone_b)
+            if pos_a is None or pos_b is None:
+                continue
+            cap = conn.max_link_capacity > 1
+            color = self._cfg.EDGE_CAP_COLOR if cap else self._cfg.EDGE_COLOR
+            width = 1 + conn.max_link_capacity
+            pygame.draw.line(self._screen, color, pos_a, pos_b, width)
+
+            if conn.max_link_capacity > 1:
+                mid = (
+                    (pos_a[0] + pos_b[0]) // 2,
+                    (pos_a[1] + pos_b[1]) // 2,
+                )
+                surf = self._font.render(
+                    f"×{conn.max_link_capacity}", True,
+                    self._cfg.EDGE_CAP_COLOR
+                )
+                self._screen.blit(surf, (mid[0] - 8, mid[1] - 8))
 
     def _set_drone_pos_start(self) -> None:
         """Place all drones at the start zone."""
@@ -146,3 +214,22 @@ class Visualizer:
             px = int(self._cfg.PADDING + (zone.x - min_x) / span_x * draw_w)
             py = int(self._cfg.PADDING + (zone.y - min_y) / span_y * draw_h)
             self._zone_positions[zone.name] = (px, py)
+
+    def _resolve_color(self,
+                       color_str: Optional[str],
+                       zone_type: ZoneType,
+                       is_start: bool,
+                       is_end: bool,
+                       ) -> tuple[int, int, int]:
+        """Return an RGB tuple for a zone based on metadata and type."""
+        if color_str:
+            named = self._cfg.NAMED_COLORS.get(color_str.lower())
+            if named:
+                return named
+        if is_start:
+            return self._cfg.ZONE_DEF_COLORS["start"]
+        if is_end:
+            return self._cfg.ZONE_DEF_COLORS["end"]
+        return self._cfg.ZONE_DEF_COLORS.get(zone_type.value,
+                                             self._cfg.
+                                             ZONE_DEF_COLORS["normal"])
