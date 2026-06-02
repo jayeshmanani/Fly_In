@@ -124,7 +124,7 @@ class Visualizer:
             pygame.display.flip()
 
             import time
-            time.sleep(5)
+            time.sleep(10)
             break
         pygame.quit()
 
@@ -134,6 +134,8 @@ class Visualizer:
         self._draw_edges()
         self._draw_zones()
         self._draw_drones()
+        self._draw_hud()
+        self._draw_legend()
 
     def _draw_drones(self) -> None:
         """Draw all active drones at their current positions."""
@@ -304,3 +306,47 @@ class Visualizer:
         return self._cfg.ZONE_DEF_COLORS.get(zone_type.value,
                                              self._cfg.
                                              ZONE_DEF_COLORS["normal"])
+
+    def _draw_hud(self) -> None:
+        """Draw the heads-up display bar at the bottom."""
+        hud_y = self._cfg.HEIGHT - 60
+        pygame.draw.rect(
+            self._screen, self._cfg.HUD_BG, (0, hud_y, self._cfg.WIDTH, 60)
+        )
+
+        total_turns = len(self._turn_log)
+        status = "AUTO" if self._auto_play else "STEP"
+        arrived = len(self._arrived)
+        n = self._graph.nb_drones
+
+        lines = [
+            f"Turn: {self._current_turn}/{total_turns}  "
+            f"Drones: {arrived}/{n} arrived  "
+            f"Mode: {status}",
+            "SPACE/→ next  ←  prev  A auto-play  R restart  Q quit",
+        ]
+
+        for i, text in enumerate(lines):
+            surf = self._hud_font.render(text, True, self._cfg.HUD_COLOR)
+            self._screen.blit(surf, (16, hud_y + 8 + i * 20))
+
+    def _draw_legend(self) -> None:
+        legend_colors: dict[str, list[tuple[int, int, int]]] = {}
+
+        for zone in self._graph.zones.values():
+            key = "Start" if zone.is_start else "End"\
+                  if zone.is_end else zone.zone_type.value.title()
+            color = self._resolve_color(
+                zone.color, zone.zone_type, zone.is_start, zone.is_end)
+
+            if color not in legend_colors.setdefault(key, []):
+                legend_colors[key].append(color)
+
+        x, y = self._cfg.WIDTH - 140, 16
+        for label, colors in legend_colors.items():
+            for i, color in enumerate(colors[:3]):
+                pygame.draw.circle(self._screen, color, (x + i * 20, y + 6), 5)
+
+            self._screen.blit(self._font.render(
+                label, True, self._cfg.LABEL_COLOR), (x + 35, y))
+            y += 22
