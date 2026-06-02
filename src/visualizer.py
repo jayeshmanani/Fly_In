@@ -1,7 +1,8 @@
 """Pygame visualizer for the Fly-in drone routing simulation."""
 
-from typing import Optional
 import pygame
+import math
+from typing import Optional
 from src.models import Graph, ZoneType
 
 
@@ -56,6 +57,17 @@ class GameConfig:
     HUD_BG = (30, 30, 45)
     ARRIVED_COLOR = (50, 200, 80)
     TRANSIT_COLOR = (255, 180, 0)
+    DRONE_PALETTE: list[tuple[int, int, int]] = [
+        (255, 80, 80), (80, 200, 80), (80, 120, 255),
+        (255, 200,   0), (255, 120, 200), (0, 220, 220),
+        (255, 160, 40), (180, 80, 255), (120, 255, 160),
+        (255, 80, 160), (80, 255, 220), (200, 200, 80),
+        (255, 140, 100), (100, 180, 255), (200, 255, 80),
+        (255, 80, 220), (80, 200, 160), (220, 140, 255),
+        (255, 220, 120), (120, 255, 200), (255, 100, 100),
+        (100, 255, 100), (100, 100, 255), (255, 255, 100),
+        (255, 100, 255),
+    ]
 
 
 class Visualizer:
@@ -110,6 +122,10 @@ class Visualizer:
             self._clock.tick(self._cfg.FPS)
             self._draw()
             pygame.display.flip()
+
+            import time
+            time.sleep(5)
+            break
         pygame.quit()
 
     def _draw(self) -> None:
@@ -117,6 +133,37 @@ class Visualizer:
         self._screen.fill(self._cfg.BG_COLOR)
         self._draw_edges()
         self._draw_zones()
+        self._draw_drones()
+
+    def _draw_drones(self) -> None:
+        """Draw all active drones at their current positions."""
+        groups: dict[str, list[int]] = {}
+        for drone_id, location in self._drone_positions.items():
+            if drone_id not in self._arrived:
+                groups.setdefault(location, []).append(drone_id)
+        for location, drone_ids in groups.items():
+            base_pos = self._zone_positions.get(location)
+            if base_pos is None:
+                continue
+            count = len(drone_ids)
+            for i, drone_id in enumerate(sorted(drone_ids)):
+                offset = self._drone_offset(i, count)
+                dx = base_pos[0] + offset[0]
+                dy = base_pos[1] + offset[1]
+                color = self._drone_color(drone_id)
+                border = (255, 255, 255)
+                pygame.draw.circle(
+                    self._screen, color, (dx, dy), self._cfg.DRONE_RADIUS
+                )
+                pygame.draw.circle(
+                    self._screen, border, (dx, dy), self._cfg.DRONE_RADIUS, 2
+                )
+                label = self._font.render(
+                    f"D{drone_id}", True, (10, 10, 10)
+                )
+                lx = dx - label.get_width() // 2
+                ly = dy - label.get_height() // 2
+                self._screen.blit(label, (lx, ly))
 
     def _draw_zones(self) -> None:
         """Draw each zone as a coloured circle with label."""
@@ -214,6 +261,30 @@ class Visualizer:
             px = int(self._cfg.PADDING + (zone.x - min_x) / span_x * draw_w)
             py = int(self._cfg.PADDING + (zone.y - min_y) / span_y * draw_h)
             self._zone_positions[zone.name] = (px, py)
+
+    def _drone_offset(
+        self, index: int, total: int
+    ) -> tuple[int, int]:
+        """Compute a small offset so multiple drones don't overlap at same loc.
+
+        Args:
+            index: This drone's position in the group.
+            total: Total drones in the group.
+
+        Returns:
+            (dx, dy) pixel offset from zone center.
+        """
+        if total == 1:
+            return (0, 0)
+        angle = (2 * math.pi * index) / total
+        r = self._cfg.ZONE_RADIUS - self._cfg.DRONE_RADIUS - 2
+        return (int(r * math.cos(angle)), int(r * math.sin(angle)))
+
+    def _drone_color(self, drone_id: int) -> tuple[int, int, int]:
+        """Return a distinct colour for a drone by ID."""
+        return self._cfg.DRONE_PALETTE[
+            (drone_id - 1) % len(self._cfg.DRONE_PALETTE)
+        ]
 
     def _resolve_color(self,
                        color_str: Optional[str],
