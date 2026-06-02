@@ -253,15 +253,24 @@ class Visualizer:
         min_x, max_x = min(xs), max(xs)
         min_y, max_y = min(ys), max(ys)
 
-        span_x = max(max_x - min_x, 1)
-        span_y = max(max_y - min_y, 1)
+        span_x = max_x - min_x
+        span_y = max_y - min_y
 
         draw_w = self._cfg.WIDTH - 2 * self._cfg.PADDING
         draw_h = self._cfg.HEIGHT - 2 * self._cfg.PADDING - 80
 
         for zone in zones:
-            px = int(self._cfg.PADDING + (zone.x - min_x) / span_x * draw_w)
-            py = int(self._cfg.PADDING + (zone.y - min_y) / span_y * draw_h)
+            if span_x == 0:
+                px = self._cfg.WIDTH // 2
+            else:
+                px = int(self._cfg.PADDING +
+                         (zone.x - min_x) / span_x * draw_w)
+            if span_y == 0:
+                py = (self._cfg.HEIGHT - 60) // 2
+            else:
+                py = int(self._cfg.PADDING +
+                         (zone.y - min_y) / span_y * draw_h)
+
             self._zone_positions[zone.name] = (px, py)
 
     def _drone_offset(
@@ -343,6 +352,13 @@ class Visualizer:
                 legend_colors[key].append(color)
 
         x, y = self._cfg.WIDTH - 140, 16
+        bg_height = len(legend_colors) * 22 + 8
+        pygame.draw.rect(
+            self._screen,
+            (50, 50, 50),
+            (x - 10, y - 8, 140, bg_height),
+            border_radius=5
+        )
         for label, colors in legend_colors.items():
             for i, color in enumerate(colors[:3]):
                 pygame.draw.circle(self._screen, color, (x + i * 20, y + 6), 5)
