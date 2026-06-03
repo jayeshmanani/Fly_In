@@ -96,7 +96,7 @@ class Visualizer:
         self._turn_log = turn_log
         self._current_turn: int = 0
         self._auto_play: bool = False
-        self._auto_delay: int = 800
+        self._auto_delay: int = 1500
         self._last_auto: int = 0
         self._zone_positions: dict[str, tuple[int, int]] = {}
         self._drone_positions: dict[int, str] = {}
@@ -120,11 +120,19 @@ class Visualizer:
         running = True
         while running:
             self._clock.tick(self._cfg.FPS)
+            now = pygame.time.get_ticks()
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
                 elif event.type == pygame.KEYDOWN:
                     running = self._handle_key(event.key)
+
+            if self._auto_play and now - self._last_auto > self._auto_delay:
+                if self._current_turn < len(self._turn_log):
+                    self._step_forward()
+                    self._last_auto = now
+                else:
+                    self._auto_play = False
             self._draw()
             pygame.display.flip()
         pygame.quit()
@@ -188,9 +196,11 @@ class Visualizer:
             if destination in self._graph.zones:
                 self._drone_positions[drone_id] = destination
                 if destination == end_zone:
+                    print(f"Drone {drone_id} has arrived at the destination!")
                     self._arrived.add(drone_id)
             else:
-                print(f"Transit Destination: {destination}")
+                print(f"Transit Destination: {destination},\
+                       Drone ID: {drone_id}")
                 self._drone_positions[drone_id] = f"~{destination}"
 
     def _draw(self) -> None:
@@ -206,10 +216,10 @@ class Visualizer:
         """Draw all active drones at their current positions."""
         groups: dict[str, list[int]] = {}
         for drone_id, location in self._drone_positions.items():
-            if drone_id not in self._arrived:
-                groups.setdefault(location, []).append(drone_id)
+            # if drone_id not in self._arrived:
+            groups.setdefault(location, []).append(drone_id)
         for location, drone_ids in groups.items():
-            base_pos = self._zone_positions.get(location)
+            base_pos = self._resolve_position(location)
             if base_pos is None:
                 continue
             count = len(drone_ids)
@@ -218,7 +228,9 @@ class Visualizer:
                 dx = base_pos[0] + offset[0]
                 dy = base_pos[1] + offset[1]
                 color = self._drone_color(drone_id)
-                border = (255, 255, 255)
+                in_transit = location.startswith("~")
+                border = self._cfg.TRANSIT_COLOR if in_transit else (
+                    255, 255, 255)
                 pygame.draw.circle(
                     self._screen, color, (dx, dy), self._cfg.DRONE_RADIUS
                 )
@@ -231,6 +243,24 @@ class Visualizer:
                 lx = dx - label.get_width() // 2
                 ly = dy - label.get_height() // 2
                 self._screen.blit(label, (lx, ly))
+
+    def _resolve_position(
+            self, location: str
+    ) -> Optional[tuple[int, int]]:
+        """Position on the edge between two zones, or at a zone center."""
+        if location.startswith("~"):
+            conn_str = location[1:]
+            parts = conn_str.split("-", 1)
+            if len(parts) == 2:
+                pos_a = self._zone_positions.get(parts[0])
+                pos_b = self._zone_positions.get(parts[1])
+                if pos_a and pos_b:
+                    return (
+                        (pos_a[0] + pos_b[0]) // 2,
+                        (pos_a[1] + pos_b[1]) // 2,
+                    )
+            return None
+        return self._zone_positions.get(location)
 
     def _draw_zones(self) -> None:
         """Draw each zone as a coloured circle with label."""
