@@ -137,7 +137,61 @@ class Visualizer:
             self._current_turn = 0
             self._auto_play = False
             self._set_drone_pos_start()
+        if key in (pygame.K_SPACE, pygame.K_RIGHT):
+            if self._current_turn < len(self._turn_log):
+                self._step_forward()
+        if key == pygame.K_LEFT:
+            if self._current_turn > 0:
+                self._step_backward()
+        if key == pygame.K_a:
+            self._auto_play = not self._auto_play
+            self._last_auto = pygame.time.get_ticks()
         return True
+
+    def _step_forward(self) -> None:
+        """Advance one turn and update drone positions."""
+        if self._current_turn >= len(self._turn_log):
+            return
+        line = self._turn_log[self._current_turn]
+        self._apply_turn(line)
+        self._current_turn += 1
+
+    def _step_backward(self) -> None:
+        """Rewind to the previous state by replaying from scratch."""
+        target = self._current_turn - 1
+        self._set_drone_pos_start()
+        self._current_turn = 0
+        for _ in range(target):
+            if self._current_turn < len(self._turn_log):
+                line = self._turn_log[self._current_turn]
+                self._apply_turn(line)
+                self._current_turn += 1
+
+    def _apply_turn(self, line: str) -> None:
+        """Parse a turn log line and update drone positions.
+
+        Args:
+            line: E.g. 'D1-goal D2-waypoint1'.
+        """
+        end_zone = self._graph.end_zone
+        for token in line.split():
+            parts = token.split("-", 1)
+            if len(parts) != 2:
+                continue
+            drone_label, destination = parts
+            try:
+                print(f"Drone Label: {drone_label}, \
+                      Destination: {destination}")
+                drone_id = int(drone_label[1:])
+            except ValueError:
+                continue
+            if destination in self._graph.zones:
+                self._drone_positions[drone_id] = destination
+                if destination == end_zone:
+                    self._arrived.add(drone_id)
+            else:
+                print(f"Transit Destination: {destination}")
+                self._drone_positions[drone_id] = f"~{destination}"
 
     def _draw(self) -> None:
         """Render the full frame."""
@@ -268,7 +322,7 @@ class Visualizer:
         span_y = max_y - min_y
 
         draw_w = self._cfg.WIDTH - 2 * self._cfg.PADDING
-        draw_h = self._cfg.HEIGHT - 2 * self._cfg.PADDING - 80
+        draw_h = self._cfg.HEIGHT - 2 * self._cfg.PADDING - 200
 
         for zone in zones:
             if span_x == 0:
@@ -362,12 +416,12 @@ class Visualizer:
             if color not in legend_colors.setdefault(key, []):
                 legend_colors[key].append(color)
 
-        x, y = self._cfg.WIDTH - 140, 16
+        x, y = self._cfg.WIDTH - 200, self._cfg.HEIGHT - 120
         bg_height = len(legend_colors) * 22 + 8
         pygame.draw.rect(
             self._screen,
             (50, 50, 50),
-            (x - 10, y - 8, 140, bg_height),
+            (x - 10, y - 10, 200, bg_height),
             border_radius=5
         )
         for label, colors in legend_colors.items():
@@ -375,5 +429,5 @@ class Visualizer:
                 pygame.draw.circle(self._screen, color, (x + i * 20, y + 6), 5)
 
             self._screen.blit(self._font.render(
-                label, True, self._cfg.LABEL_COLOR), (x + 35, y))
+                label, True, self._cfg.LABEL_COLOR), (x + 75, y))
             y += 22
