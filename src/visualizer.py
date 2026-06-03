@@ -120,13 +120,24 @@ class Visualizer:
         running = True
         while running:
             self._clock.tick(self._cfg.FPS)
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                elif event.type == pygame.KEYDOWN:
+                    running = self._handle_key(event.key)
             self._draw()
             pygame.display.flip()
-
-            import time
-            time.sleep(10)
-            break
         pygame.quit()
+
+    def _handle_key(self, key: int) -> bool:
+        """Handle a key press. Returns False if the app should quit."""
+        if key in (pygame.K_q, pygame.K_ESCAPE):
+            return False
+        if key == pygame.K_r:
+            self._current_turn = 0
+            self._auto_play = False
+            self._set_drone_pos_start()
+        return True
 
     def _draw(self) -> None:
         """Render the full frame."""
