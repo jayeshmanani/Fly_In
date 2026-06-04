@@ -33,9 +33,6 @@ def main() -> None:
     except ParseError as e:
         print(f"Simulation error: {e}", file=sys.stderr)
         sys.exit(1)
-
-    for line_num, line in enumerate(turn_log):
-        print(f"Turn {line_num + 1}: {line}")
     print()
     print("Launching visualizer... (Q or ESC to quit)")
 

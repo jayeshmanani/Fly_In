@@ -9,8 +9,8 @@ from src.models import Graph, ZoneType
 class GameConfig:
     """Configuration constants for the visualizer."""
 
-    WIDTH: int = 1280
-    HEIGHT: int = 720
+    WIDTH: int = 1600
+    HEIGHT: int = 860
     PADDING: int = 80
     FPS: int = 60
     ZONE_RADIUS: int = 28
@@ -271,13 +271,13 @@ class Visualizer:
 
             if zone.zone_type == ZoneType.RESTRICTED:
                 if not zone.color:
-                    color = (200, 80, 80)
+                    color = (200, 80, 80)  # muted light red
                 pygame.draw.circle(
                     self._screen, color, pos, self._cfg.ZONE_RADIUS + 4, 2
                 )
             elif zone.zone_type == ZoneType.PRIORITY:
                 if not zone.color:
-                    color = (80, 220, 180)
+                    color = (80, 220, 180)  # cyan-green
                 pygame.draw.circle(
                     self._screen, color, pos, self._cfg.ZONE_RADIUS + 4, 2
                 )

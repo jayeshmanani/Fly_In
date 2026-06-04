@@ -80,10 +80,6 @@ class Simulator:
         for drone in self._drones:
             self._zone_states[start].drones.add(drone.drone_id)
 
-    def _get_zone_state(self, name: str) -> Optional[ZoneState]:
-        """Return zone state by name."""
-        return self._zone_states.get(name)
-
     def _all_drones_reached(self) -> bool:
         """Check if all drones have reached the end zone."""
         return all(drone.has_arrived() for drone in self._drones)
