@@ -35,9 +35,11 @@ def main() -> None:
         sys.exit(1)
     print()
     print("Launching visualizer... (Q or ESC to quit)")
-
-    viz = Visualizer(graph, turn_log)
-    viz.run()
+    try:
+        viz = Visualizer(graph, turn_log)
+        viz.run()
+    except KeyboardInterrupt:
+        pass
     print()
     print(f"Completed in {sim.get_turn_count()} turns.")
 
