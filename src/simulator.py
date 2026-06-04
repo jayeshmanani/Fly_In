@@ -16,6 +16,7 @@ class Simulator:
         """Initialize the simulator with a graph."""
         self._graph = graph
         self._drones: list[Drone] = []
+        self._finder: PathFinder = PathFinder(graph)
         self._turn: int = 0
         self._turn_log: list[str] = []
         self._zone_states: dict[str, ZoneState] = {
@@ -29,18 +30,34 @@ class Simulator:
 
     def run(self) -> list[str]:
         """Run the simulation until all drones have reached the end zone."""
-        max_turns = 10
+        max_turns = 100
         self._setup_drones()
-        print(f"Initial drone assignments: {[str(d) for d in self._drones]}")
-        print(
-            f"Path Assignments: {[{d.drone_id: d.path for d in self._drones}]}"
-        )
         while not self._all_drones_reached() and self._turn < max_turns:
             self._turn += 1
             moves = self._advance_turn()
             if moves:
                 self._turn_log.append(" ".join(moves))
+                stale = 0
+            else:
+                stale += 1
+                if stale >= 5:
+                    self._force_reroute_all()
+                    stale = 0
         return self._turn_log
+
+    def _force_reroute_all(self) -> None:
+        """Force reroute all stuck drones when deadlock detected."""
+        for drone in self._active_drones():
+            if drone.status != DroneStatus.WAITING:
+                continue
+            end = self._graph.end_zone
+            new_path = self._finder.find_shortest_path(
+                drone.current_zone, end
+            )
+            if new_path and len(new_path) >= 2:
+                history = drone.path[: drone.path_index + 1]
+                drone.path = history + new_path[1:]
+                drone.path_index = len(history) - 1
 
     def get_turn_count(self) -> int:
         """Return the number of turns the simulation took."""
@@ -90,7 +107,6 @@ class Simulator:
         """
         drones: list[Drone] = []
         n = self._graph.nb_drones
-        print(f"Assigning {n} drones across {len(paths)} paths")
         path_capacities = [self._path_capacity(p) for p in paths]
         assignments: list[list[int]] = [[] for _ in paths]
 
@@ -144,6 +160,7 @@ class Simulator:
 
     def _advance_turn(self) -> list[str]:
         moves: list[str] = []
+        just_arrived: set[int] = set()
         for drone in self._active_drones():
             if drone.status == DroneStatus.IN_TRANSIT:
                 drone.transit_turns_left -= 1
@@ -151,10 +168,14 @@ class Simulator:
                     result = self._arrive_from_transit(drone)
                     if result:
                         moves.append(result)
-
-        for drone in self._active_drones():
-            if drone.status != DroneStatus.WAITING:
-                continue
+                        just_arrived.add(drone.drone_id)
+        waiting = [
+            d for d in self._active_drones()
+            if d.status == DroneStatus.WAITING
+            and d.drone_id not in just_arrived
+        ]
+        waiting.sort(key=lambda d: self._steps_remaining(d))
+        for drone in waiting:
             if drone.transit_turns_left > 0:
                 drone.transit_turns_left -= 1
                 continue
@@ -163,6 +184,12 @@ class Simulator:
                 moves.append(result)
         moves.sort(key=lambda x: int(x.split("-")[0][1]))
         return moves
+
+    def _steps_remaining(self, drone: Drone) -> int:
+        """Return how many steps remain in drone's current path."""
+        if not drone.path:
+            return 999
+        return len(drone.path) - drone.path_index - 1
 
     def _arrive_from_transit(self, drone: Drone) -> Optional[str]:
         dest_name = drone.transit_destination

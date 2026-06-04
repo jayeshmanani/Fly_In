@@ -162,6 +162,7 @@ class Visualizer:
             return
         line = self._turn_log[self._current_turn]
         self._apply_turn(line)
+        print(f"Turn {self._current_turn + 1}: {line}")
         self._current_turn += 1
 
     def _step_backward(self) -> None:
@@ -188,19 +189,14 @@ class Visualizer:
                 continue
             drone_label, destination = parts
             try:
-                print(f"Drone Label: {drone_label}, \
-                      Destination: {destination}")
                 drone_id = int(drone_label[1:])
             except ValueError:
                 continue
             if destination in self._graph.zones:
                 self._drone_positions[drone_id] = destination
                 if destination == end_zone:
-                    print(f"Drone {drone_id} has arrived at the destination!")
                     self._arrived.add(drone_id)
             else:
-                print(f"Transit Destination: {destination},\
-                       Drone ID: {drone_id}")
                 self._drone_positions[drone_id] = f"~{destination}"
 
     def _draw(self) -> None:

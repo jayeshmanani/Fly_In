@@ -36,16 +36,15 @@ def main() -> None:
         print(f"Simulation error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    for line in turn_log:
-        print(line)
-
-    print()
-    print(f"Completed in {sim.get_turn_count()} turns.")
+    for line_num, line in enumerate(turn_log):
+        print(f"Turn {line_num + 1}: {line}")
     print()
     print("Launching visualizer... (Q or ESC to quit)")
 
     viz = Visualizer(graph, turn_log)
     viz.run()
+    print()
+    print(f"Completed in {sim.get_turn_count()} turns.")
 
 
 if __name__ == "__main__":
