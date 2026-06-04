@@ -30,7 +30,7 @@ class Simulator:
 
     def run(self) -> list[str]:
         """Run the simulation until all drones have reached the end zone."""
-        max_turns = 100
+        max_turns = 10000000
         self._setup_drones()
         while not self._all_drones_reached() and self._turn < max_turns:
             self._turn += 1

@@ -26,8 +26,6 @@ def main() -> None:
     except ParseError as e:
         print(f"Parse error: {e}", file=sys.stderr)
         sys.exit(1)
-    print(graph)
-    print()
 
     try:
         sim = Simulator(graph)
